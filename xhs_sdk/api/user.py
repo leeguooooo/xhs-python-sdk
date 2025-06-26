@@ -1,29 +1,15 @@
 """User API handlers."""
 
+import asyncio
 from typing import Union
 
+from xhs_sdk.api.base import BaseAPI
 from xhs_sdk.constants import Endpoints
-from xhs_sdk.core import AsyncHttpClient, HttpClient, SignatureGenerator
 from xhs_sdk.models import User
 
 
-class UserAPI:
+class UserAPI(BaseAPI):
     """User-related API operations."""
-    
-    def __init__(
-        self,
-        http_client: Union[HttpClient, AsyncHttpClient],
-        signature_generator: SignatureGenerator,
-    ) -> None:
-        """Initialize UserAPI.
-        
-        Args:
-            http_client: HTTP client instance
-            signature_generator: Signature generator instance
-        """
-        self._http_client = http_client
-        self._signature_generator = signature_generator
-        self._is_async = isinstance(http_client, AsyncHttpClient)
     
     def get_user_profile(self, user_id: str) -> Union[User, "asyncio.Future[User]"]:
         """Get user profile by ID.

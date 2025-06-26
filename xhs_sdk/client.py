@@ -65,10 +65,10 @@ class BaseXhsClient:
     
     def _init_apis(self) -> None:
         """Initialize API handlers."""
-        self.user_api = UserAPI(self._http_client, self._signature_generator)
-        self.note_api = NoteAPI(self._http_client, self._signature_generator)
+        self.user_api = UserAPI(self._http_client, self._signature_generator, self.cookie)
+        self.note_api = NoteAPI(self._http_client, self._signature_generator, self.cookie)
         self.comment_api = CommentAPI(
-            self._http_client, self._signature_generator
+            self._http_client, self._signature_generator, self.cookie
         )
     
     def _generate_search_id(self) -> str:
@@ -182,7 +182,7 @@ class XhsClient(BaseXhsClient):
         Raises:
             XhsAPIError: If API request fails
         """
-        return self.note_api.get_home_feed(self.cookie)
+        return self.note_api.get_home_feed()
     
     def get_note(self, note_id: str, xsec_token: str) -> NoteDetail:
         """Get detailed note information.
@@ -211,7 +211,6 @@ class XhsClient(BaseXhsClient):
         return self.note_api.get_note_detail(
             note_id=note_id,
             xsec_token=xsec_token,
-            cookie=self.cookie,
         )
     
     def get_note_comments(
@@ -246,12 +245,20 @@ class XhsClient(BaseXhsClient):
             cursor=cursor,
         )
     
-    def post_comment(self, note_id: str, content: str) -> Comment:
+    def post_comment(
+        self, 
+        note_id: str, 
+        content: str,
+        target_comment_id: str = "",
+        at_users: list = None,
+    ) -> Comment:
         """Post a comment to a note.
         
         Args:
             note_id: Target note ID
             content: Comment content
+            target_comment_id: ID of comment to reply to (optional)
+            at_users: List of user IDs to mention (optional)
             
         Returns:
             Posted comment information
@@ -272,7 +279,8 @@ class XhsClient(BaseXhsClient):
         return self.comment_api.post_comment(
             note_id=note_id,
             content=content,
-            cookie=self.cookie,
+            target_comment_id=target_comment_id,
+            at_users=at_users,
         )
     
     def close(self) -> None:
@@ -371,7 +379,7 @@ class AsyncXhsClient(BaseXhsClient):
         Raises:
             XhsAPIError: If API request fails
         """
-        return await self.note_api.get_home_feed(self.cookie)
+        return await self.note_api.get_home_feed()
     
     async def get_note(self, note_id: str, xsec_token: str) -> NoteDetail:
         """Get detailed note information.
@@ -400,7 +408,6 @@ class AsyncXhsClient(BaseXhsClient):
         return await self.note_api.get_note_detail(
             note_id=note_id,
             xsec_token=xsec_token,
-            cookie=self.cookie,
         )
     
     async def get_note_comments(
@@ -435,12 +442,20 @@ class AsyncXhsClient(BaseXhsClient):
             cursor=cursor,
         )
     
-    async def post_comment(self, note_id: str, content: str) -> Comment:
+    async def post_comment(
+        self, 
+        note_id: str, 
+        content: str,
+        target_comment_id: str = "",
+        at_users: list = None,
+    ) -> Comment:
         """Post a comment to a note.
         
         Args:
             note_id: Target note ID
             content: Comment content
+            target_comment_id: ID of comment to reply to (optional)
+            at_users: List of user IDs to mention (optional)
             
         Returns:
             Posted comment information
@@ -461,7 +476,8 @@ class AsyncXhsClient(BaseXhsClient):
         return await self.comment_api.post_comment(
             note_id=note_id,
             content=content,
-            cookie=self.cookie,
+            target_comment_id=target_comment_id,
+            at_users=at_users,
         )
     
     async def close(self) -> None:

@@ -1,29 +1,15 @@
 """Comment API handlers."""
 
+import asyncio
 from typing import Union
 
+from xhs_sdk.api.base import BaseAPI
 from xhs_sdk.constants import Endpoints, IMAGE_FORMATS
-from xhs_sdk.core import AsyncHttpClient, HttpClient, SignatureGenerator
 from xhs_sdk.models import Comment, CommentPage
 
 
-class CommentAPI:
+class CommentAPI(BaseAPI):
     """Comment-related API operations."""
-    
-    def __init__(
-        self,
-        http_client: Union[HttpClient, AsyncHttpClient],
-        signature_generator: SignatureGenerator,
-    ) -> None:
-        """Initialize CommentAPI.
-        
-        Args:
-            http_client: HTTP client instance
-            signature_generator: Signature generator instance
-        """
-        self._http_client = http_client
-        self._signature_generator = signature_generator
-        self._is_async = isinstance(http_client, AsyncHttpClient)
     
     def get_comments(
         self,
@@ -58,13 +44,17 @@ class CommentAPI:
             "cursor": cursor,
             "top_comment_id": "",
             "image_formats": ",".join(IMAGE_FORMATS),
-            "xsec_token": xsec_token,
         }
         
-        response = self._http_client.request(
+        # Only add xsec_token if provided
+        if xsec_token:
+            params["xsec_token"] = xsec_token
+        
+        response = self._make_request_sync(
             method="GET",
             uri=Endpoints.COMMENT_PAGE,
             params=params,
+            use_signature=False,  # GET requests typically don't need signature
         )
         
         return CommentPage.from_api_response(response)
@@ -81,13 +71,17 @@ class CommentAPI:
             "cursor": cursor,
             "top_comment_id": "",
             "image_formats": ",".join(IMAGE_FORMATS),
-            "xsec_token": xsec_token,
         }
         
-        response = await self._http_client.request(
+        # Only add xsec_token if provided
+        if xsec_token:
+            params["xsec_token"] = xsec_token
+        
+        response = await self._make_request_async(
             method="GET",
             uri=Endpoints.COMMENT_PAGE,
             params=params,
+            use_signature=False,  # GET requests typically don't need signature
         )
         
         return CommentPage.from_api_response(response)
@@ -96,48 +90,52 @@ class CommentAPI:
         self,
         note_id: str,
         content: str,
-        cookie: str,
+        target_comment_id: str = "",
+        at_users: list = None,
     ) -> Union[Comment, "asyncio.Future[Comment]"]:
         """Post a comment to a note.
         
         Args:
             note_id: Target note ID
             content: Comment content
-            cookie: Authentication cookie
+            target_comment_id: ID of comment to reply to (optional)
+            at_users: List of user IDs to mention (optional)
             
         Returns:
             Posted comment (or Future for async)
         """
+        if at_users is None:
+            at_users = []
+            
         if self._is_async:
-            return self._post_comment_async(note_id, content, cookie)
+            return self._post_comment_async(note_id, content, target_comment_id, at_users)
         else:
-            return self._post_comment_sync(note_id, content, cookie)
+            return self._post_comment_sync(note_id, content, target_comment_id, at_users)
     
     def _post_comment_sync(
         self,
         note_id: str,
         content: str,
-        cookie: str,
+        target_comment_id: str,
+        at_users: list,
     ) -> Comment:
         """Synchronous comment posting."""
         data = {
             "note_id": note_id,
             "content": content,
-            "at_users": [],
+            "at_users": at_users,
         }
         
-        # Generate signature headers
-        headers = self._signature_generator.generate_headers(
-            uri=Endpoints.COMMENT_POST,
-            data=data,
-            cookie=cookie,
-        )
+        # Add target_comment_id if it's a reply
+        if target_comment_id:
+            data["target_comment_id"] = target_comment_id
         
-        response = self._http_client.request(
+        response = self._make_request_sync(
             method="POST",
             uri=Endpoints.COMMENT_POST,
-            headers=headers,
-            json_data=data,
+            data=data,
+            use_signature=True,
+            include_common=True,  # Comment post needs x-s-common
         )
         
         # The response contains the new comment
@@ -147,27 +145,26 @@ class CommentAPI:
         self,
         note_id: str,
         content: str,
-        cookie: str,
+        target_comment_id: str,
+        at_users: list,
     ) -> Comment:
         """Asynchronous comment posting."""
         data = {
             "note_id": note_id,
             "content": content,
-            "at_users": [],
+            "at_users": at_users,
         }
         
-        # Generate signature headers
-        headers = self._signature_generator.generate_headers(
-            uri=Endpoints.COMMENT_POST,
-            data=data,
-            cookie=cookie,
-        )
+        # Add target_comment_id if it's a reply
+        if target_comment_id:
+            data["target_comment_id"] = target_comment_id
         
-        response = await self._http_client.request(
+        response = await self._make_request_async(
             method="POST",
             uri=Endpoints.COMMENT_POST,
-            headers=headers,
-            json_data=data,
+            data=data,
+            use_signature=True,
+            include_common=True,  # Comment post needs x-s-common
         )
         
         # The response contains the new comment

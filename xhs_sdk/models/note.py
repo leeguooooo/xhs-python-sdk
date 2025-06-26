@@ -57,10 +57,31 @@ class Note(BaseModel):
         
         # Parse images
         images = []
-        if "images_list" in data:
+        if "image_list" in data:
+            # Search result format
+            images = [img.get("url_default", img.get("url", "")) for img in data["image_list"]]
+        elif "images_list" in data:
             images = [img.get("url", "") for img in data["images_list"]]
         elif "images" in data:
             images = data["images"] if isinstance(data["images"], list) else []
+        elif "cover" in data:
+            # Use cover image if no image list
+            cover_url = data["cover"].get("url_default", data["cover"].get("url", ""))
+            if cover_url:
+                images = [cover_url]
+        
+        # Parse interaction info (likes, comments, etc.)
+        interact_info = data.get("interact_info", {})
+        likes = interact_info.get("liked_count", data.get("likes_count", 0))
+        comments = interact_info.get("comment_count", data.get("comments_count", 0))
+        collects = interact_info.get("collected_count", data.get("collected_count", 0))
+        shares = interact_info.get("shared_count", data.get("share_count", 0))
+        
+        # Convert string counts to integers
+        def to_int(val):
+            if isinstance(val, str):
+                return int(val.replace(",", "").replace("k", "000").replace("w", "0000"))
+            return int(val or 0)
         
         # Parse timestamp
         created_at = None
@@ -72,15 +93,15 @@ class Note(BaseModel):
         
         return cls(
             note_id=data.get("note_id", data.get("id", "")),
-            title=data.get("title", ""),
+            title=data.get("title", data.get("display_title", "")),
             description=data.get("desc", data.get("description", "")),
             author=author,
             images=images,
             video=data.get("video", None),
-            likes=data.get("liked_count", data.get("likes", 0)),
-            comments=data.get("comments", data.get("comment_count", 0)),
-            collects=data.get("collected_count", data.get("collects", 0)),
-            shares=data.get("shared_count", data.get("shares", 0)),
+            likes=to_int(likes),
+            comments=to_int(comments),
+            collects=to_int(collects),
+            shares=to_int(shares),
             tags=[tag.get("name", "") for tag in data.get("tags", [])],
             created_at=created_at,
             note_type=data.get("type", "normal"),
@@ -165,7 +186,22 @@ class SearchResult(BaseModel):
             SearchResult instance
         """
         items = data.get("items", [])
-        notes = [Note.from_api_response(item) for item in items]
+        notes = []
+        
+        for item in items:
+            # Search results have a different structure with note_card
+            if "note_card" in item:
+                note_data = item["note_card"]
+                # Add missing fields that Note.from_api_response expects
+                note_data["note_id"] = item.get("id", "")
+                note_data["xsec_token"] = item.get("xsec_token", "")
+                # Use display_title as title
+                if "display_title" in note_data:
+                    note_data["title"] = note_data["display_title"]
+                notes.append(Note.from_api_response(note_data))
+            else:
+                # Regular note structure
+                notes.append(Note.from_api_response(item))
         
         return cls(
             notes=notes,

@@ -1,30 +1,16 @@
 """Note API handlers."""
 
+import asyncio
 import json
 from typing import List, Union
 
+from xhs_sdk.api.base import BaseAPI
 from xhs_sdk.constants import Endpoints, IMAGE_FORMATS, XS_COMMON_HEADER
-from xhs_sdk.core import AsyncHttpClient, HttpClient, SignatureGenerator
 from xhs_sdk.models import Note, NoteDetail, SearchResult
 
 
-class NoteAPI:
+class NoteAPI(BaseAPI):
     """Note-related API operations."""
-    
-    def __init__(
-        self,
-        http_client: Union[HttpClient, AsyncHttpClient],
-        signature_generator: SignatureGenerator,
-    ) -> None:
-        """Initialize NoteAPI.
-        
-        Args:
-            http_client: HTTP client instance
-            signature_generator: Signature generator instance
-        """
-        self._http_client = http_client
-        self._signature_generator = signature_generator
-        self._is_async = isinstance(http_client, AsyncHttpClient)
     
     def search_notes(
         self,
@@ -76,10 +62,11 @@ class NoteAPI:
             "image_formats": json.dumps(IMAGE_FORMATS, separators=(",", ":")),
         }
         
-        response = self._http_client.request(
+        response = self._make_request_sync(
             method="POST",
             uri=Endpoints.SEARCH_NOTES,
-            json_data=data,
+            data=data,
+            use_signature=True,
         )
         
         return SearchResult.from_api_response(response)
@@ -105,29 +92,27 @@ class NoteAPI:
             "image_formats": json.dumps(IMAGE_FORMATS, separators=(",", ":")),
         }
         
-        response = await self._http_client.request(
+        response = await self._make_request_async(
             method="POST",
             uri=Endpoints.SEARCH_NOTES,
-            json_data=data,
+            data=data,
+            use_signature=True,
         )
         
         return SearchResult.from_api_response(response)
     
-    def get_home_feed(self, cookie: str) -> Union[List[Note], "asyncio.Future[List[Note]]"]:
+    def get_home_feed(self) -> Union[List[Note], "asyncio.Future[List[Note]]"]:
         """Get home feed recommendations.
-        
-        Args:
-            cookie: Authentication cookie
             
         Returns:
             List of notes (or Future for async)
         """
         if self._is_async:
-            return self._get_home_feed_async(cookie)
+            return self._get_home_feed_async()
         else:
-            return self._get_home_feed_sync(cookie)
+            return self._get_home_feed_sync()
     
-    def _get_home_feed_sync(self, cookie: str) -> List[Note]:
+    def _get_home_feed_sync(self) -> List[Note]:
         """Synchronous home feed implementation."""
         data = {
             "category": "homefeed_recommend",
@@ -144,24 +129,17 @@ class NoteAPI:
             "unread_note_count": 0,
         }
         
-        # Generate signature headers
-        headers = self._signature_generator.generate_headers(
-            uri=Endpoints.HOME_FEED,
-            data=data,
-            cookie=cookie,
-        )
-        
-        response = self._http_client.request(
+        response = self._make_request_sync(
             method="POST",
             uri=Endpoints.HOME_FEED,
-            headers=headers,
-            json_data=data,
+            data=data,
+            use_signature=True,
         )
         
         items = response.get("items", [])
         return [Note.from_api_response(item) for item in items]
     
-    async def _get_home_feed_async(self, cookie: str) -> List[Note]:
+    async def _get_home_feed_async(self) -> List[Note]:
         """Asynchronous home feed implementation."""
         data = {
             "category": "homefeed_recommend",
@@ -178,18 +156,11 @@ class NoteAPI:
             "unread_note_count": 0,
         }
         
-        # Generate signature headers
-        headers = self._signature_generator.generate_headers(
-            uri=Endpoints.HOME_FEED,
-            data=data,
-            cookie=cookie,
-        )
-        
-        response = await self._http_client.request(
+        response = await self._make_request_async(
             method="POST",
             uri=Endpoints.HOME_FEED,
-            headers=headers,
-            json_data=data,
+            data=data,
+            use_signature=True,
         )
         
         items = response.get("items", [])
@@ -199,28 +170,25 @@ class NoteAPI:
         self,
         note_id: str,
         xsec_token: str,
-        cookie: str,
     ) -> Union[NoteDetail, "asyncio.Future[NoteDetail]"]:
         """Get detailed note information.
         
         Args:
             note_id: Note ID
             xsec_token: Security token
-            cookie: Authentication cookie
             
         Returns:
             Note details (or Future for async)
         """
         if self._is_async:
-            return self._get_note_detail_async(note_id, xsec_token, cookie)
+            return self._get_note_detail_async(note_id, xsec_token)
         else:
-            return self._get_note_detail_sync(note_id, xsec_token, cookie)
+            return self._get_note_detail_sync(note_id, xsec_token)
     
     def _get_note_detail_sync(
         self,
         note_id: str,
         xsec_token: str,
-        cookie: str,
     ) -> NoteDetail:
         """Synchronous note detail implementation."""
         data = {
@@ -231,19 +199,12 @@ class NoteAPI:
             "xsec_token": xsec_token,
         }
         
-        # Generate signature headers with x-s-common
-        headers = self._signature_generator.generate_headers(
-            uri=Endpoints.NOTE_FEED,
-            data=data,
-            cookie=cookie,
-            include_common=True,
-        )
-        
-        response = self._http_client.request(
+        response = self._make_request_sync(
             method="POST",
             uri=Endpoints.NOTE_FEED,
-            headers=headers,
-            json_data=data,
+            data=data,
+            use_signature=True,
+            include_common=True,
         )
         
         return NoteDetail.from_api_response(response)
@@ -252,7 +213,6 @@ class NoteAPI:
         self,
         note_id: str,
         xsec_token: str,
-        cookie: str,
     ) -> NoteDetail:
         """Asynchronous note detail implementation."""
         data = {
@@ -263,19 +223,12 @@ class NoteAPI:
             "xsec_token": xsec_token,
         }
         
-        # Generate signature headers with x-s-common
-        headers = self._signature_generator.generate_headers(
-            uri=Endpoints.NOTE_FEED,
-            data=data,
-            cookie=cookie,
-            include_common=True,
-        )
-        
-        response = await self._http_client.request(
+        response = await self._make_request_async(
             method="POST",
             uri=Endpoints.NOTE_FEED,
-            headers=headers,
-            json_data=data,
+            data=data,
+            use_signature=True,
+            include_common=True,
         )
         
         return NoteDetail.from_api_response(response)

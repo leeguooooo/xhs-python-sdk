@@ -146,3 +146,5 @@ data/
 credentials.json
 config.json
 secrets.yaml
+config.local.json
+*.local.json
